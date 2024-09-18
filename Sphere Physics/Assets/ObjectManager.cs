@@ -6,21 +6,21 @@ using UnityEngine;
 public class ObjectManager : MonoBehaviour
 {
 
-    List<SpherePhysics> spheres;
+    List<Sphere> spheres;
     List<PlaneScript> planes;
 
     void Start()
     {
-        spheres = FindObjectsOfType<SpherePhysics>().ToList();
+        spheres = FindObjectsOfType<Sphere>().ToList();
         planes = FindObjectsOfType<PlaneScript>().ToList();
     }
 
     // Update is called once per frame
     void Update()
     {
-        for (int i = 0; i < spheres.Count - 1; i++)
+        for (int i = 0; i < spheres.Count; i++)
         {
-            SpherePhysics sphere = spheres[i];
+            Sphere sphere = spheres[i];
             foreach (PlaneScript plane in planes)
             {
                 if (plane.isCollidingWith(sphere))
@@ -29,12 +29,15 @@ public class ObjectManager : MonoBehaviour
                 }
             }
 
-            for (int j = i + 1; j < spheres.Count; j++)
+            if (i < (spheres.Count - 1))
             {
-                SpherePhysics sphere2 = spheres[j];
-                if (sphere2.isCollidingWith(sphere))
+                for (int j = i + 1; j < spheres.Count; j++)
                 {
-                    sphere.resolveCollisionWith(sphere2);
+                    Sphere sphere2 = spheres[j];
+                    if (sphere2.isCollidingWith(sphere))
+                    {
+                        sphere.resolveCollisionWith(sphere2);
+                    }
                 }
             }
         }
