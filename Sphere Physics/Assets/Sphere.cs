@@ -1,10 +1,8 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
 
-public class SpherePhysics : MonoBehaviour
+public class Sphere : MonoBehaviour
 {
 
     Vector3 velocity, acceleration;
@@ -14,15 +12,21 @@ public class SpherePhysics : MonoBehaviour
 
     public float Radius { get { return transform.localScale.x / 2.0f; } private set { transform.localScale = value * 2 * Vector3.one; } }
 
-    PlaneScript plane;
+  
     // Start is called before the first frame update
     void Start()
     {
+        Vector3 previousVelocity = velocity;
+
+        Vector3 previousAcceleration = acceleration;
+
+        Vector3 previousPosition = transform.position;
     }
 
     // Update is called once per frame
     void Update()
     {
+
         acceleration = gravity * Vector3.down;
 
         velocity += acceleration * Time.deltaTime;
@@ -40,21 +44,24 @@ public class SpherePhysics : MonoBehaviour
     {
         transform.position -= velocity * Time.deltaTime;
         /*velocity = -(CoefficientOfRestitution * velocity);*/
-        Vector3 y = Utili.Parallel(velocity, plane.Normal);
-        Vector3 x = Utili.Perpendicular(velocity, plane.Normal);
+        Vector3 y = Utili.Parallel(velocity, planeScript.Normal);
+        Vector3 x = Utili.Perpendicular(velocity, planeScript.Normal);
 
         Vector3 newVelocity = (x - CoefficientOfRestitution * y);
 
         velocity = newVelocity;
     }
 
-    public bool isCollidingWith(SpherePhysics otherSphere)
+    public bool isCollidingWith(Sphere otherSphere)
     {
         return (otherSphere.Radius + Radius) > (Vector3.Distance(otherSphere.transform.position, transform.position));
     }
 
-    internal void resolveCollisionWith(SpherePhysics sphere2)
+    internal void resolveCollisionWith(Sphere sphere2)
     {
+        // Calculate Time of Impact
+        
+
         SpherePhysics sphere;
         Vector3 normal = (transform.position - sphere2.transform.position).normalized;
 

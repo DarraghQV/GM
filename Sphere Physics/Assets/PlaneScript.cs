@@ -16,7 +16,7 @@ public class PlaneScript : MonoBehaviour
         } }
 
 
-    internal bool isCollidingWith(SpherePhysics spherePhysics)
+    internal bool isCollidingWith(Sphere spherePhysics)
     {
        float d = Vector3.Dot(spherePhysics.transform.position - point, normal);
 
