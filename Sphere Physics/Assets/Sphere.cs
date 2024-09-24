@@ -64,6 +64,8 @@ public class Sphere : MonoBehaviour
         // Step 1: Time of Impact
         timeOfImpact = -previousDistance / (currentDistance - previousDistance) * Time.deltaTime;
 
+        Vector3 ImpactPosition = previousPosition + timeOfImpact * velocity;
+
         // Step 2: New Velocity
         Vector3 impactVelocity = previousVelocity += acceleration * timeOfImpact;
 
