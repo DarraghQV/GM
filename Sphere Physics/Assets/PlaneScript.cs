@@ -15,6 +15,19 @@ public class PlaneScript : MonoBehaviour
             transform.up = normal;
         } }
 
+    public Vector3 Position { 
+        get { 
+            return transform.position;
+        } 
+        internal set { 
+            transform.position = value; } }
+
+    internal float distanceFromSphere(Sphere sphere)
+    {
+        float d = Vector3.Dot(sphere.transform.position - point, normal);
+
+        return d - sphere.Radius;
+    }
 
     internal bool isCollidingWith(Sphere spherePhysics)
     {
