@@ -1,13 +1,16 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 public class Sphere : MonoBehaviour
 {
 
-    Vector3 velocity, acceleration;
+    Vector3 velocity, acceleration, previousVelocity, previousAcceleration, previousPosition;
     public float mass = 1.0f;
     float gravity = 9.81f;
+    float timeOfImpact = 0.0f;
     float CoefficientOfRestitution = 0.8f;
 
     public float Radius { get { return transform.localScale.x / 2.0f; } private set { transform.localScale = value * 2 * Vector3.one; } }
@@ -16,15 +19,15 @@ public class Sphere : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        Vector3 previousVelocity = velocity;
+        previousVelocity = velocity;
 
-        Vector3 previousAcceleration = acceleration;
+        previousAcceleration = acceleration;
 
-        Vector3 previousPosition = transform.position;
+        previousPosition = transform.position;
     }
 
     // Update is called once per frame
-    void Update()
+    public void Update()
     {
 
         acceleration = gravity * Vector3.down;
@@ -42,10 +45,36 @@ public class Sphere : MonoBehaviour
 
     public void resolveCollisionWith(PlaneScript planeScript)
     {
-        transform.position -= velocity * Time.deltaTime;
+        float currentDistance = planeScript.distanceFromSphere(this);
+        float previousDistance = Vector3.Dot(previousPosition - planeScript.Position, planeScript.Normal) - Radius;
+
+        print("Distance between Sphere and Plane:" + currentDistance + "Old Distance between Sphere and Plane: " + previousDistance);
+
+        // Calculate Time of Impact
+        // At time t0, (Plane Position - Sphere Position) normalised - radius = d0
+        // At time t1, (Plane Position - Sphere Position) normalised - radius = d1
+
+        // d(deltaTime) = d1
+        // d(0) = d0 =) d(t) = d0 + mt
+        //              d(t) = do + (d1-d0) * (t/deltaTime)
+        // For what t is d(t) = 0
+        // 0 = d0 + (d1-d0) * t/deltaTime
+        // ToI = -d0/(d1-d0) * deltaTime
+
+        // Step 1: Time of Impact
+        timeOfImpact = -previousDistance / (currentDistance - previousDistance) * Time.deltaTime;
+
+        // Step 2: New Velocity
+        Vector3 impactVelocity = previousVelocity += acceleration * timeOfImpact;
+
+        //Step 3: Position of Impact
+        Vector3 positionOfImpact = previousPosition + (timeOfImpact * impactVelocity);
+
+        positionOfImpact -= impactVelocity * timeOfImpact; 
+
         /*velocity = -(CoefficientOfRestitution * velocity);*/
-        Vector3 y = Utili.Parallel(velocity, planeScript.Normal);
-        Vector3 x = Utili.Perpendicular(velocity, planeScript.Normal);
+        Vector3 y = Utili.Parallel(impactVelocity, planeScript.Normal);
+        Vector3 x = Utili.Perpendicular(impactVelocity, planeScript.Normal);
 
         Vector3 newVelocity = (x - CoefficientOfRestitution * y);
 
@@ -59,8 +88,12 @@ public class Sphere : MonoBehaviour
 
     internal void resolveCollisionWith(Sphere sphere2)
     {
-        // Calculate Time of Impact
-        
+
+        float distance = Vector3.Distance(sphere2.transform.position, transform.position) - (sphere2.Radius + Radius);
+        float oldDistance = Vector3.Distance(sphere2.previousPosition, previousPosition) - (sphere2.Radius + Radius);
+
+        print("Distance between Spheres:" + distance + "Old Distance between Spheres: " + oldDistance);
+
 
         SpherePhysics sphere;
         Vector3 normal = (transform.position - sphere2.transform.position).normalized;
@@ -79,6 +112,7 @@ public class Sphere : MonoBehaviour
 
         velocity = sphere1Perp + v1 * CoefficientOfRestitution;
         sphere2.slaveCollisionResolution(sphere2.transform.position, sphere2Perp + v2 * sphere2.CoefficientOfRestitution);
+
 
         //SpherePhysics sphere = (Utili.Parallel(velocity, sphere.Normal)) + (Utili.Parallel(velocity, sphere2.Normal));
         //sphere2 = Utili.Perpendicular(velocity, plane.Normal) + (Utili.Perpendicular(velocity, plane.Normal));    }
