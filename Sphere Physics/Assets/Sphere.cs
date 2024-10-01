@@ -10,8 +10,8 @@ public class Sphere : MonoBehaviour
     Vector3 velocity, acceleration, previousVelocity, previousAcceleration, previousPosition;
     public float mass = 1.0f;
     float gravity = 9.81f;
-    float timeOfImpact = 0.0f;
     float CoefficientOfRestitution = 0.8f;
+    private float zeroDistanceThreshold = 0.0f;
 
     public float Radius { get { return transform.localScale.x / 2.0f; } private set { transform.localScale = value * 2 * Vector3.one; } }
 
@@ -62,17 +62,15 @@ public class Sphere : MonoBehaviour
         // ToI = -d0/(d1-d0) * deltaTime
 
         // Step 1: Time of Impact
-        timeOfImpact = -previousDistance / (currentDistance - previousDistance) * Time.deltaTime;
-
-        Vector3 ImpactPosition = previousPosition + timeOfImpact * velocity;
+        
+        float timeOfImpact = -previousDistance / (currentDistance - previousDistance) * Time.deltaTime;
 
         // Step 2: New Velocity
-        Vector3 impactVelocity = previousVelocity += acceleration * timeOfImpact;
+        Vector3 impactVelocity = previousVelocity + (acceleration * timeOfImpact);
 
         //Step 3: Position of Impact
-        Vector3 positionOfImpact = previousPosition + (timeOfImpact * impactVelocity);
+        Vector3 positionOfImpact = previousPosition + (timeOfImpact * velocity);
 
-        positionOfImpact -= impactVelocity * timeOfImpact; 
 
         /*velocity = -(CoefficientOfRestitution * velocity);*/
         Vector3 y = Utili.Parallel(impactVelocity, planeScript.Normal);
@@ -80,7 +78,10 @@ public class Sphere : MonoBehaviour
 
         Vector3 newVelocity = (x - CoefficientOfRestitution * y);
 
-        velocity = newVelocity;
+
+        float timeRemaining = Time.deltaTime - timeOfImpact;
+        velocity = newVelocity + acceleration * timeRemaining;
+        transform.position = positionOfImpact + velocity * timeRemaining;
     }
 
     public bool isCollidingWith(Sphere otherSphere)
