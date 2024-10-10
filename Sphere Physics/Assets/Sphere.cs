@@ -1,124 +1,138 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using Unity.VisualScripting;
+using UnityEditor.Build.Reporting;
+using UnityEditor.Playables;
 using UnityEngine;
-using UnityEngine.UIElements;
 
 public class Sphere : MonoBehaviour
 {
-
-    Vector3 velocity, acceleration, previousVelocity, previousAcceleration, previousPosition;
+    public Vector3 previousVelocity, previousPosition;
+    public Vector3 velocity, acceleration;
     public float mass = 1.0f;
     float gravity = 9.81f;
-    float CoefficientOfRestitution = 0.8f;
-    private float zeroDistanceThreshold = 0.0f;
+    float coefficientOfRestitution = 0.8f;
 
     public float Radius { get { return transform.localScale.x / 2.0f; } private set { transform.localScale = value * 2 * Vector3.one; } }
 
-  
     // Start is called before the first frame update
     void Start()
     {
-        previousVelocity = velocity;
-
-        previousAcceleration = acceleration;
-
-        previousPosition = transform.position;
     }
 
     // Update is called once per frame
-    public void Update()
+    void Update()
     {
+        previousVelocity = velocity;
+        previousPosition = transform.position;
 
         acceleration = gravity * Vector3.down;
 
         velocity += acceleration * Time.deltaTime;
 
         transform.position += velocity * Time.deltaTime;
-
-        if (isCollidingWith(this))
-        {
-            //Vector3 v1 = (Utili.Parallel(velocity, plane.Normal)) + (Utili.Parallel(velocity, plane.Normal));
-            //Vector3 v2 = (Utili.Perpendicular(velocity, plane.Normal)) + (Utili.Perpendicular(velocity, plane.Normal));
-        }
     }
 
-    public void resolveCollisionWith(PlaneScript planeScript)
+    public void ResolveCollisionWith(PlaneScript planeScript)
     {
         float currentDistance = planeScript.distanceFromSphere(this);
         float previousDistance = Vector3.Dot(previousPosition - planeScript.Position, planeScript.Normal) - Radius;
 
-        print("Distance between Sphere and Plane:" + currentDistance + "Old Distance between Sphere and Plane: " + previousDistance);
+        //DEBUG
+        print("Distance:" + currentDistance + "Old Distance: " + previousDistance);
 
-        // Calculate Time of Impact
-        // At time t0, (Plane Position - Sphere Position) normalised - radius = d0
-        // At time t1, (Plane Position - Sphere Position) normalised - radius = d1
-
-        // d(deltaTime) = d1
-        // d(0) = d0 =) d(t) = d0 + mt
-        //              d(t) = do + (d1-d0) * (t/deltaTime)
-        // For what t is d(t) = 0
-        // 0 = d0 + (d1-d0) * t/deltaTime
-        // ToI = -d0/(d1-d0) * deltaTime
-
-        // Step 1: Time of Impact
-        
+        //Step 1) To check dividing by zero
         float timeOfImpact = -previousDistance / (currentDistance - previousDistance) * Time.deltaTime;
+        // DEBUG print("TOI: " + timeOfImpact + "deltaTime: " + Time.deltaTime);
 
-        // Step 2: New Velocity
-        Vector3 impactVelocity = previousVelocity + (acceleration * timeOfImpact);
-
-        //Step 3: Position of Impact
+        //Step 2)
         Vector3 positionOfImpact = previousPosition + (timeOfImpact * velocity);
 
+        //recalculate velocity using timeOfImpact
+        Vector3 velocityAtImpact = previousVelocity + (acceleration * timeOfImpact);
 
-        /*velocity = -(CoefficientOfRestitution * velocity);*/
-        Vector3 y = Utili.Parallel(impactVelocity, planeScript.Normal);
-        Vector3 x = Utili.Perpendicular(impactVelocity, planeScript.Normal);
+        //Step 3) Resolve Collision
+        Vector3 normalComponent = Utili.ProjectVectorOntoNormal(velocityAtImpact, planeScript.Normal);
+        Vector3 perpendicularComponent = Utili.ExtractComponentPerpendicularToNormal(velocityAtImpact, planeScript.Normal);
 
-        Vector3 newVelocity = (x - CoefficientOfRestitution * y);
+        Vector3 newVelocity = (perpendicularComponent - coefficientOfRestitution * normalComponent);
 
-
+        //calculate remaining time after impact
         float timeRemaining = Time.deltaTime - timeOfImpact;
+
         velocity = newVelocity + acceleration * timeRemaining;
+
+        //check velocity is moving ball away from plane (IE same direction as normal +- 90 degrees)
+        if (Vector3.Dot(velocity, planeScript.Normal) < 0)
+        {
+            velocity = Utili.ExtractComponentPerpendicularToNormal(velocity, planeScript.Normal);
+        };
+
         transform.position = positionOfImpact + velocity * timeRemaining;
     }
 
     public bool isCollidingWith(Sphere otherSphere)
     {
-        return (otherSphere.Radius + Radius) > (Vector3.Distance(otherSphere.transform.position, transform.position));
+        return Vector3.Distance(otherSphere.transform.position, transform.position) < (otherSphere.Radius + Radius);
     }
 
-    internal void resolveCollisionWith(Sphere sphere2)
+    public void ResolveCollisionWith(Sphere sphere2)
     {
+        //calculate time of impact
+        float currentSpherePlaneDistance = Vector3.Distance(sphere2.transform.position, transform.position) - (sphere2.Radius + Radius);
+        float previousSpherePlaneDistance = Vector3.Distance(sphere2.previousPosition, previousPosition) - (sphere2.Radius + Radius);
 
-        float distance = Vector3.Distance(sphere2.transform.position, transform.position) - (sphere2.Radius + Radius);
-        float oldDistance = Vector3.Distance(sphere2.previousPosition, previousPosition) - (sphere2.Radius + Radius);
+        float timeOfImpact = -previousSpherePlaneDistance / (currentSpherePlaneDistance - previousSpherePlaneDistance) * Time.deltaTime;
+        print("TOI: " + timeOfImpact + "deltaTime: " + Time.deltaTime);
 
-        print("Distance between Spheres:" + distance + "Old Distance between Spheres: " + oldDistance);
+        //After getting TOI, calculate position of spheres at impact for both spheres.
+        Vector3 sphere1AtImpact = previousPosition + velocity * timeOfImpact;
+        Vector3 sphere2AtImpact = sphere2.previousPosition + sphere2.velocity * timeOfImpact;
+
+        //recalculate Velocity for both spheres from previous position, but using timeOfImpact instead of deltaTime
+        Vector3 Sphere1VelocityAtImpact = previousVelocity + (acceleration * timeOfImpact);
+        Vector3 sphere2VelocityAtImpact = sphere2.previousVelocity + (sphere2.acceleration * timeOfImpact);
+
+        //normal of collision at Time of Impact
+        Vector3 collisionNormal = (sphere1AtImpact - sphere2AtImpact).normalized;
+
+        Vector3 sphere1ParallelToNormal = Utili.ProjectVectorOntoNormal(Sphere1VelocityAtImpact, collisionNormal);
+        Vector3 sphere1PerpendicularToNormal = Utili.ExtractComponentPerpendicularToNormal(Sphere1VelocityAtImpact, collisionNormal);
+        Vector3 sphere2ParallelToNormal = Utili.ProjectVectorOntoNormal(sphere2VelocityAtImpact, collisionNormal);
+        Vector3 sphere2PerpendicularToNormal = Utili.ExtractComponentPerpendicularToNormal(sphere2VelocityAtImpact, collisionNormal);
+
+        Vector3 prevParallelVelocity1 = sphere1ParallelToNormal;
+        Vector3 prevParallelVelocity2 = sphere2ParallelToNormal;
+
+        //velocities after impact parrallel to the normal 
+        //
+        Vector3 parallelVelocity1 = ((mass - sphere2.mass) / (mass + sphere2.mass)) * prevParallelVelocity1 + ((sphere2.mass * 2) / (mass + sphere2.mass)) * prevParallelVelocity2;
+        Vector3 parallelVelocity2 = (-(mass - sphere2.mass) / (mass + sphere2.mass)) * prevParallelVelocity2 + ((mass * 2) / (mass + sphere2.mass)) * prevParallelVelocity1;
+
+        velocity = sphere1PerpendicularToNormal + parallelVelocity1 * coefficientOfRestitution;
+        Vector3 sphere1VelocityAfterImpact = sphere1PerpendicularToNormal + parallelVelocity1 * coefficientOfRestitution;
+        Vector3 sphere2VelocityAfterImpact = sphere2PerpendicularToNormal + parallelVelocity2 * coefficientOfRestitution;
 
 
-        SpherePhysics sphere;
-        Vector3 normal = (transform.position - sphere2.transform.position).normalized;
+        //calculate velocity from impact time to time of detection (remaining time after impact)
+        float timeRemaining = Time.deltaTime - timeOfImpact;
 
-        Vector3 sphere1Parallel = Utili.Parallel(velocity, normal);
-        Vector3 sphere2Parallel = Utili.Parallel(sphere2.velocity, normal);
+        velocity = sphere1VelocityAfterImpact + acceleration * timeRemaining;
+        Vector3 sphere2Velocity = sphere2VelocityAfterImpact + sphere2.acceleration * timeRemaining;
 
-        Vector3 sphere1Perp = Utili.Perpendicular(velocity, normal);
-        Vector3 sphere2Perp = Utili.Perpendicular(sphere2.velocity, normal);
+        //update this sphere first
+        transform.position = sphere1AtImpact + sphere1VelocityAfterImpact * timeRemaining;
 
-        Vector3 u1 = sphere1Parallel;
-        Vector3 u2 = sphere2Parallel;
+        //calculate othersphere position
+        Vector3 sphere2ResolvedPosition = sphere2AtImpact + sphere2VelocityAfterImpact * timeRemaining;
 
-        Vector3 v1 = ((mass - sphere2.mass) / (mass + sphere2.mass)) * u1 + (sphere2.mass * 2) / (mass + sphere2.mass) * u2;
-        Vector3 v2 = (-(mass - sphere2.mass) / (mass + sphere2.mass)) * u2 + (mass * 2) / (mass + sphere2.mass) * u1;
+        //Checking for overlap between spheres after resolution
+        if (Vector3.Distance(transform.position, sphere2ResolvedPosition) < (Radius + sphere2.Radius))
+        { print("HELP"); }
 
-        velocity = sphere1Perp + v1 * CoefficientOfRestitution;
-        sphere2.slaveCollisionResolution(sphere2.transform.position, sphere2Perp + v2 * sphere2.CoefficientOfRestitution);
-
-
-        //SpherePhysics sphere = (Utili.Parallel(velocity, sphere.Normal)) + (Utili.Parallel(velocity, sphere2.Normal));
-        //sphere2 = Utili.Perpendicular(velocity, plane.Normal) + (Utili.Perpendicular(velocity, plane.Normal));    }
+        sphere2.slaveCollisionResolution(sphere2ResolvedPosition, sphere2Velocity);
+        //asking other sphere to change
     }
 
     private void slaveCollisionResolution(Vector3 position, Vector3 newVelocity)

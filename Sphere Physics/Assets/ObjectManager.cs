@@ -5,10 +5,11 @@ using UnityEngine;
 
 public class ObjectManager : MonoBehaviour
 {
+    public List<Sphere> spheres;
+    public List<PlaneScript> planes;
 
-    List<Sphere> spheres;
-    List<PlaneScript> planes;
 
+    // Start is called before the first frame update
     void Start()
     {
         spheres = FindObjectsOfType<Sphere>().ToList();
@@ -25,7 +26,7 @@ public class ObjectManager : MonoBehaviour
             {
                 if (plane.isCollidingWith(sphere))
                 {
-                    sphere.resolveCollisionWith(plane);
+                    sphere.ResolveCollisionWith(plane);
                 }
             }
 
@@ -36,7 +37,7 @@ public class ObjectManager : MonoBehaviour
                     Sphere sphere2 = spheres[j];
                     if (sphere2.isCollidingWith(sphere))
                     {
-                        sphere.resolveCollisionWith(sphere2);
+                        sphere.ResolveCollisionWith(sphere2);
                     }
                 }
             }
