@@ -159,6 +159,10 @@ namespace StarterAssets
             JumpAndGravity();
             GroundedCheck();
             Move();
+            if (Input.GetKeyDown(KeyCode.J))
+            {
+                _animator.SetTrigger("Talk");
+            }
         }
 
         private void LateUpdate()
