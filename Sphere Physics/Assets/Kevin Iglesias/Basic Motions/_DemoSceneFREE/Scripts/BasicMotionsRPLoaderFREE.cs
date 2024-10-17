@@ -9,10 +9,10 @@ using UnityEngine.Rendering;
 namespace KevinIglesias
 {
     [ExecuteInEditMode]
-    public class BasicMotionsRPMaterialLoader : MonoBehaviour
+    public class BasicMotionsRPLoaderFREE : MonoBehaviour
     {
         [SerializeField]
-        public List<BasicMotionsMaterialType> materialTypes;
+        public List<BasicMotionsMaterialTypeFREE> materialTypes;
 
         void OnValidate()
         {
@@ -64,7 +64,7 @@ namespace KevinIglesias
     }
     
     [System.Serializable]
-    public class BasicMotionsMaterialType
+    public class BasicMotionsMaterialTypeFREE
     {
         [HideInInspector]
         public string materialName;
