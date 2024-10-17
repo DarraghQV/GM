@@ -1,4 +1,6 @@
-﻿ using UnityEngine;
+﻿using System.Collections.Generic;
+using UnityEngine;
+using System.Linq;
 #if ENABLE_INPUT_SYSTEM 
 using UnityEngine.InputSystem;
 #endif
@@ -109,6 +111,8 @@ namespace StarterAssets
         private const float _threshold = 0.01f;
 
         private bool _hasAnimator;
+        List<CubeView> allCatchableItems;
+        CubeView cubeView;
 
         private bool IsCurrentDeviceMouse
         {
@@ -129,6 +133,9 @@ namespace StarterAssets
             if (_mainCamera == null)
             {
                 _mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
+                if (!_animator) { gameObject.GetComponent<Animator>(); }
+
+                allCatchableItems = FindObjectsOfType<CubeView>().ToList();
             }
         }
 
@@ -152,6 +159,22 @@ namespace StarterAssets
             _fallTimeoutDelta = FallTimeout;
         }
 
+        private CubeView ClosestObject()
+        {
+            CubeView closestObject = null;
+            float closestDistance = float.MaxValue;
+            foreach (CubeView obj in allCatchableItems)
+            {
+                float distance = Vector3.Distance(transform.position, obj.transform.position);
+                if (distance < closestDistance)
+                {
+                    closestDistance = distance;
+                    closestObject = obj;
+                }
+            }
+            return closestObject;
+        }
+
         private void Update()
         {
             _hasAnimator = TryGetComponent(out _animator);
@@ -163,11 +186,28 @@ namespace StarterAssets
             {
                 _animator.SetTrigger("Talk");
             }
+            if (Input.GetKeyDown(KeyCode.P))
+            {
+                cubeView = ClosestObject();
+            }
         }
 
         private void LateUpdate()
         {
             CameraRotation();
+
+            Transform headTransform = _animator.GetBoneTransform(HumanBodyBones.Head);
+
+            if (cubeView)
+            {  Vector3 newForward = (cubeView.transform.position - headTransform.position).normalized;
+                Vector3 newRight = (Vector3.down - Vector3.Dot(Vector3.down, newForward) * newForward).normalized;
+                Vector3 newUp = Vector3.Cross(newForward, newRight);
+                headTransform.rotation = Quaternion.LookRotation(newForward, newUp);
+            }
+
+            //Vector3 lookat = new Vector3(2,20,3);
+
+            //headTransform.LookAt(lookat);
         }
 
         private void AssignAnimationIDs()
