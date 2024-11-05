@@ -190,6 +190,19 @@ namespace StarterAssets
             {
                 cubeView = ClosestObject();
             }
+            if (Input.GetKeyDown(KeyCode.E) && cubeView != null)
+            {
+                float distanceToFocus = Vector3.Distance(transform.position, cubeView.transform.position);
+                if (distanceToFocus <= 2.0f)
+                {
+                    PickUpObject(cubeView);
+                }
+            }
+            if (Input.GetKeyDown(KeyCode.T) && cubeView != null)
+            {
+                _animator.SetTrigger("Throw");
+                ThrowObject(cubeView);
+            }
         }
 
         private void LateUpdate()
@@ -209,6 +222,45 @@ namespace StarterAssets
 
             //headTransform.LookAt(lookat);
         }
+
+        private void PickUpObject(CubeView obj)
+        {
+            Transform handTransform = _animator.GetBoneTransform(HumanBodyBones.RightHand);
+            obj.transform.SetParent(handTransform);
+            obj.transform.localPosition = Vector3.zero;
+            obj.transform.localRotation = Quaternion.identity;
+            // disable physics on the object
+            Rigidbody objRigidbody = obj.GetComponent<Rigidbody>();
+            if (objRigidbody != null)
+            {
+                objRigidbody.isKinematic = true;
+            }
+            //play a "pick up" animation
+            //m_animator.SetTrigger("PickUp");
+        }
+
+        private void ThrowObject(CubeView obj)
+        {
+            if (obj == null) return;
+
+            Transform handTransform = _animator.GetBoneTransform(HumanBodyBones.RightHand);
+
+            obj.transform.SetParent(null);
+
+            Rigidbody objRigidbody = obj.GetComponent<Rigidbody>();
+            if (objRigidbody != null)
+            {
+                objRigidbody.isKinematic = false;
+                Vector3 throwDirection = -handTransform.forward + Vector3.up; 
+                float throwForce = 7.5f;
+                objRigidbody.AddForce(throwDirection * throwForce, ForceMode.Impulse);
+            }
+
+            cubeView = null;
+
+            //_animator.SetTrigger("Throw");
+        }
+
 
         private void AssignAnimationIDs()
         {
