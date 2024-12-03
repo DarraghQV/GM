@@ -5,14 +5,14 @@ using UnityEngine;
 
 public class ObjectManager : MonoBehaviour
 {
-    public List<Sphere> spheres;
+    public List<SpherePhysics> spheres;
     public List<PlaneScript> planes;
 
 
     // Start is called before the first frame update
     void Start()
     {
-        spheres = FindObjectsOfType<Sphere>().ToList();
+        spheres = FindObjectsOfType<SpherePhysics>().ToList();
         planes = FindObjectsOfType<PlaneScript>().ToList();
     }
 
@@ -21,7 +21,7 @@ public class ObjectManager : MonoBehaviour
     {
         for (int i = 0; i < spheres.Count; i++)
         {
-            Sphere sphere = spheres[i];
+            SpherePhysics sphere = spheres[i];
             foreach (PlaneScript plane in planes)
             {
                 if (plane.isCollidingWith(sphere))
@@ -34,7 +34,7 @@ public class ObjectManager : MonoBehaviour
             {
                 for (int j = i + 1; j < spheres.Count; j++)
                 {
-                    Sphere sphere2 = spheres[j];
+                    SpherePhysics sphere2 = spheres[j];
                     if (sphere2.isCollidingWith(sphere))
                     {
                         sphere.ResolveCollisionWith(sphere2);

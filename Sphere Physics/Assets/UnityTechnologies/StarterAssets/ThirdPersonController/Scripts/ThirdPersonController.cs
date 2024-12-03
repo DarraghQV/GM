@@ -1,6 +1,9 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
+using System;
+using System.Collections;
 using System.Linq;
+using UnityEngine.Windows.Speech;
 #if ENABLE_INPUT_SYSTEM 
 using UnityEngine.InputSystem;
 #endif
@@ -100,6 +103,13 @@ namespace StarterAssets
         private int _animIDFreeFall;
         private int _animIDMotionSpeed;
 
+        private bool isMovingForward; 
+        private bool isMovingBackward; 
+        private bool isMovingLeft; 
+        private bool isMovingRight; 
+        private bool isJumping;
+        private bool isStopped;
+
 #if ENABLE_INPUT_SYSTEM 
         private PlayerInput _playerInput;
 #endif
@@ -113,6 +123,9 @@ namespace StarterAssets
         private bool _hasAnimator;
         List<CubeView> allCatchableItems;
         CubeView cubeView;
+
+        private KeywordRecognizer keywordRecognizer; 
+        private Dictionary<string, Action> voiceActions = new Dictionary<string, Action>();
 
         private bool IsCurrentDeviceMouse
         {
@@ -139,10 +152,11 @@ namespace StarterAssets
             }
         }
 
-        private void Start()
+        void Start()
         {
+            InitializeVoiceCommands();
             _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
-            
+
             _hasAnimator = TryGetComponent(out _animator);
             _controller = GetComponent<CharacterController>();
             _input = GetComponent<StarterAssetsInputs>();
@@ -157,6 +171,28 @@ namespace StarterAssets
             // reset our timeouts on start
             _jumpTimeoutDelta = JumpTimeout;
             _fallTimeoutDelta = FallTimeout;
+
+            
+        }
+
+        private void InitializeVoiceCommands() { 
+            voiceActions.Add("forward", () => isMovingForward = true);
+            voiceActions.Add("back", () => isMovingBackward = true); 
+            voiceActions.Add("left", () => isMovingLeft = true); 
+            voiceActions.Add("right", () => isMovingRight = true); 
+            voiceActions.Add("jump", () => isJumping = true);
+            voiceActions.Add("stop", () => isStopped = true);
+
+            if(isMovingBackward == true)
+            {
+                isMovingForward = false;
+            }
+            if(isMovingForward == true) { 
+                isMovingBackward = false; 
+            }
+            keywordRecognizer = new KeywordRecognizer(voiceActions.Keys.ToArray()); 
+            keywordRecognizer.OnPhraseRecognized += OnVoiceCommandRecognized; 
+            keywordRecognizer.Start(); 
         }
 
         private CubeView ClosestObject()
@@ -190,20 +226,21 @@ namespace StarterAssets
             {
                 cubeView = ClosestObject();
             }
-            if (Input.GetKeyDown(KeyCode.E) && cubeView != null)
+            Vector3 moveInput = Vector3.zero; 
+            if (isMovingForward) moveInput += new Vector3(0, -1, 0); 
+            if (isMovingBackward) moveInput += new Vector3(0, 1, 0); 
+            if (isMovingLeft) moveInput += new Vector3(-1, 0, 0); 
+            if (isMovingRight) moveInput += new Vector3(1, 0, 0);
+            if (isStopped) isMovingBackward = false;
+            _input.move = moveInput;
+
+           
+            if (isJumping)
             {
-                float distanceToFocus = Vector3.Distance(transform.position, cubeView.transform.position);
-                if (distanceToFocus <= 2.0f)
-                {
-                    PickUpObject(cubeView);
-                }
+                _input.jump = true; 
+                isJumping = false;  
             }
-            if (Input.GetKeyDown(KeyCode.T) && cubeView != null)
-            {
-                _animator.SetTrigger("Throw");
-                ThrowObject(cubeView);
             }
-        }
 
         private void LateUpdate()
         {
@@ -212,7 +249,8 @@ namespace StarterAssets
             Transform headTransform = _animator.GetBoneTransform(HumanBodyBones.Head);
 
             if (cubeView)
-            {  Vector3 newForward = (cubeView.transform.position - headTransform.position).normalized;
+            {
+                Vector3 newForward = (cubeView.transform.position - headTransform.position).normalized;
                 Vector3 newRight = (Vector3.down - Vector3.Dot(Vector3.down, newForward) * newForward).normalized;
                 Vector3 newUp = Vector3.Cross(newForward, newRight);
                 headTransform.rotation = Quaternion.LookRotation(newForward, newUp);
@@ -222,45 +260,6 @@ namespace StarterAssets
 
             //headTransform.LookAt(lookat);
         }
-
-        private void PickUpObject(CubeView obj)
-        {
-            Transform handTransform = _animator.GetBoneTransform(HumanBodyBones.RightHand);
-            obj.transform.SetParent(handTransform);
-            obj.transform.localPosition = Vector3.zero;
-            obj.transform.localRotation = Quaternion.identity;
-            // disable physics on the object
-            Rigidbody objRigidbody = obj.GetComponent<Rigidbody>();
-            if (objRigidbody != null)
-            {
-                objRigidbody.isKinematic = true;
-            }
-            //play a "pick up" animation
-            //m_animator.SetTrigger("PickUp");
-        }
-
-        private void ThrowObject(CubeView obj)
-        {
-            if (obj == null) return;
-
-            Transform handTransform = _animator.GetBoneTransform(HumanBodyBones.RightHand);
-
-            obj.transform.SetParent(null);
-
-            Rigidbody objRigidbody = obj.GetComponent<Rigidbody>();
-            if (objRigidbody != null)
-            {
-                objRigidbody.isKinematic = false;
-                Vector3 throwDirection = -handTransform.forward + Vector3.up; 
-                float throwForce = 7.5f;
-                objRigidbody.AddForce(throwDirection * throwForce, ForceMode.Impulse);
-            }
-
-            cubeView = null;
-
-            //_animator.SetTrigger("Throw");
-        }
-
 
         private void AssignAnimationIDs()
         {
@@ -285,6 +284,17 @@ namespace StarterAssets
                 _animator.SetBool(_animIDGrounded, Grounded);
             }
         }
+
+        private void OnVoiceCommandRecognized(PhraseRecognizedEventArgs args)
+        {
+            Debug.Log($"Recognized Voice Command: {args.text}");
+            if (voiceActions.ContainsKey(args.text))
+            {
+                voiceActions[args.text].Invoke();
+            }
+        }
+
+        
 
         private void CameraRotation()
         {
@@ -471,7 +481,7 @@ namespace StarterAssets
             {
                 if (FootstepAudioClips.Length > 0)
                 {
-                    var index = Random.Range(0, FootstepAudioClips.Length);
+                    var index = UnityEngine.Random.Range(0, FootstepAudioClips.Length);
                     AudioSource.PlayClipAtPoint(FootstepAudioClips[index], transform.TransformPoint(_controller.center), FootstepAudioVolume);
                 }
             }

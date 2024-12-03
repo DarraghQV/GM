@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Utili
+public class Util
 {
     public static Vector3 ProjectVectorOntoNormal(Vector3 vector, Vector3 normal)
     {
