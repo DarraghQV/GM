@@ -1,6 +1,9 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
+using System;
+using System.Collections;
 using System.Linq;
+using UnityEngine.Windows.Speech;
 #if ENABLE_INPUT_SYSTEM 
 using UnityEngine.InputSystem;
 #endif
@@ -100,6 +103,13 @@ namespace StarterAssets
         private int _animIDFreeFall;
         private int _animIDMotionSpeed;
 
+        private bool isMovingForward;
+        private bool isMovingBackward;
+        private bool isMovingLeft;
+        private bool isMovingRight;
+        private bool isJumping;
+        private bool isStopped;
+
 #if ENABLE_INPUT_SYSTEM 
         private PlayerInput _playerInput;
 #endif
@@ -113,6 +123,9 @@ namespace StarterAssets
         private bool _hasAnimator;
         List<CubeView> allCatchableItems;
         CubeView cubeView;
+
+        private KeywordRecognizer keywordRecognizer;
+        private Dictionary<string, Action> voiceActions = new Dictionary<string, Action>();
 
         private bool IsCurrentDeviceMouse
         {
@@ -139,8 +152,9 @@ namespace StarterAssets
             }
         }
 
-        private void Start()
+        void Start()
         {
+            InitializeVoiceCommands();
             _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
 
             _hasAnimator = TryGetComponent(out _animator);
@@ -157,8 +171,48 @@ namespace StarterAssets
             // reset our timeouts on start
             _jumpTimeoutDelta = JumpTimeout;
             _fallTimeoutDelta = FallTimeout;
+
+
         }
 
+        private void InitializeVoiceCommands()
+        {
+            voiceActions.Add("forward", () =>
+            {
+                isMovingForward = true;
+                ClearOtherMovementFlags("forward");
+            });
+            voiceActions.Add("back", () =>
+            {
+                isMovingBackward = true;
+                ClearOtherMovementFlags("back");
+            });
+            voiceActions.Add("left", () =>
+            {
+                isMovingLeft = true;
+                ClearOtherMovementFlags("left");
+            });
+            voiceActions.Add("right", () =>
+            {
+                isMovingRight = true;
+                ClearOtherMovementFlags("right");
+            });
+            voiceActions.Add("jump", () => isJumping = true);
+            voiceActions.Add("stop", () => isStopped = true);
+
+            keywordRecognizer = new KeywordRecognizer(voiceActions.Keys.ToArray());
+            keywordRecognizer.OnPhraseRecognized += OnVoiceCommandRecognized;
+            keywordRecognizer.Start();
+        }
+
+        private void ClearOtherMovementFlags(string activeDirection)
+        {
+            // Disable all other movement flags except the one passed
+            isMovingForward = activeDirection == "forward";
+            isMovingBackward = activeDirection == "back";
+            isMovingLeft = activeDirection == "left";
+            isMovingRight = activeDirection == "right";
+        }
         private CubeView ClosestObject()
         {
             CubeView closestObject = null;
@@ -181,29 +235,51 @@ namespace StarterAssets
 
             JumpAndGravity();
             GroundedCheck();
+
+            Vector3 keyboardInput = new Vector3(_input.move.x, _input.move.y, 0);
+
+            
+            Vector3 voiceInput = Vector3.zero;
+
+            if (isMovingForward) voiceInput += new Vector3(0, -1, 0);  
+            if (isMovingBackward) voiceInput += new Vector3(0, 1, 0); 
+            if (isMovingLeft) voiceInput += new Vector3(-1, 0, 0);    
+            if (isMovingRight) voiceInput += new Vector3(1, 0, 0);    
+
+            
+
+            Vector3 combinedInput = keyboardInput + voiceInput;
+
+            if (combinedInput.magnitude > 1)
+            {
+                combinedInput = combinedInput.normalized;
+            }
+
+           
+
+            _input.move = combinedInput;
+
+            if (isJumping)
+            {
+                _input.jump = true;
+                isJumping = false;
+            }
+
+            if (isStopped)
+            {
+                isMovingForward = false;
+                isMovingBackward = false;
+                isMovingLeft = false;
+                isMovingRight = false;
+
+                _input.move = Vector3.zero;
+                isStopped = false;
+            }
+
             Move();
-            if (Input.GetKeyDown(KeyCode.J))
-            {
-                _animator.SetTrigger("Talk");
-            }
-            if (Input.GetKeyDown(KeyCode.P))
-            {
-                cubeView = ClosestObject();
-            }
-            if (Input.GetKeyDown(KeyCode.E) && cubeView != null)
-            {
-                float distanceToFocus = Vector3.Distance(transform.position, cubeView.transform.position);
-                if (distanceToFocus <= 2.0f)
-                {
-                    PickUpObject(cubeView);
-                }
-            }
-            if (Input.GetKeyDown(KeyCode.T) && cubeView != null)
-            {
-                _animator.SetTrigger("Throw");
-                ThrowObject(cubeView);
-            }
         }
+
+
 
         private void LateUpdate()
         {
@@ -223,45 +299,6 @@ namespace StarterAssets
 
             //headTransform.LookAt(lookat);
         }
-
-        private void PickUpObject(CubeView obj)
-        {
-            Transform handTransform = _animator.GetBoneTransform(HumanBodyBones.RightHand);
-            obj.transform.SetParent(handTransform);
-            obj.transform.localPosition = Vector3.zero;
-            obj.transform.localRotation = Quaternion.identity;
-            // disable physics on the object
-            Rigidbody objRigidbody = obj.GetComponent<Rigidbody>();
-            if (objRigidbody != null)
-            {
-                objRigidbody.isKinematic = true;
-            }
-            //play a "pick up" animation
-            //m_animator.SetTrigger("PickUp");
-        }
-
-        private void ThrowObject(CubeView obj)
-        {
-            if (obj == null) return;
-
-            Transform handTransform = _animator.GetBoneTransform(HumanBodyBones.RightHand);
-
-            obj.transform.SetParent(null);
-
-            Rigidbody objRigidbody = obj.GetComponent<Rigidbody>();
-            if (objRigidbody != null)
-            {
-                objRigidbody.isKinematic = false;
-                Vector3 throwDirection = -handTransform.forward + Vector3.up;
-                float throwForce = 7.5f;
-                objRigidbody.AddForce(throwDirection * throwForce, ForceMode.Impulse);
-            }
-
-            cubeView = null;
-
-            //_animator.SetTrigger("Throw");
-        }
-
 
         private void AssignAnimationIDs()
         {
@@ -286,6 +323,17 @@ namespace StarterAssets
                 _animator.SetBool(_animIDGrounded, Grounded);
             }
         }
+
+        private void OnVoiceCommandRecognized(PhraseRecognizedEventArgs args)
+        {
+            Debug.Log($"Recognized Voice Command: {args.text}");
+            if (voiceActions.ContainsKey(args.text))
+            {
+                voiceActions[args.text].Invoke();
+            }
+        }
+
+
 
         private void CameraRotation()
         {
@@ -452,27 +500,13 @@ namespace StarterAssets
             return Mathf.Clamp(lfAngle, lfMin, lfMax);
         }
 
-        private void OnDrawGizmosSelected()
-        {
-            Color transparentGreen = new Color(0.0f, 1.0f, 0.0f, 0.35f);
-            Color transparentRed = new Color(1.0f, 0.0f, 0.0f, 0.35f);
-
-            if (Grounded) Gizmos.color = transparentGreen;
-            else Gizmos.color = transparentRed;
-
-            // when selected, draw a gizmo in the position of, and matching radius of, the grounded collider
-            Gizmos.DrawSphere(
-                new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z),
-                GroundedRadius);
-        }
-
         private void OnFootstep(AnimationEvent animationEvent)
         {
             if (animationEvent.animatorClipInfo.weight > 0.5f)
             {
                 if (FootstepAudioClips.Length > 0)
                 {
-                    var index = Random.Range(0, FootstepAudioClips.Length);
+                    var index = UnityEngine.Random.Range(0, FootstepAudioClips.Length);
                     AudioSource.PlayClipAtPoint(FootstepAudioClips[index], transform.TransformPoint(_controller.center), FootstepAudioVolume);
                 }
             }

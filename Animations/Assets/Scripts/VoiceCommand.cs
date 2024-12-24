@@ -31,12 +31,12 @@ public class VoiceCommand : MonoBehaviour
 
     private void Forward()
     {
-        transform.Translate(1, 0, 0);
+        transform.Translate(-1, 0, 0);
     }
 
     private void Back()
     {
-        transform.Translate(-1, 0, 0);
+        transform.Translate(1, 0, 0);
     }
 
     private void Up()
