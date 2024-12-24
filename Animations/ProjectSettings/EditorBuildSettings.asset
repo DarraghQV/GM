@@ -4,5 +4,8 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scenes/Animation + Network + Voice.unity
+    guid: 6a4e70fd52da87e48b6a313147c74a48
   m_configObjects: {}

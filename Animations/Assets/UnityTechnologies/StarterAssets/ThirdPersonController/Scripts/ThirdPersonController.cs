@@ -4,7 +4,9 @@ using System;
 using System.Collections;
 using System.Linq;
 using UnityEngine.Windows.Speech;
-#if ENABLE_INPUT_SYSTEM 
+using Unity.Netcode;
+
+#if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
 
@@ -17,7 +19,7 @@ namespace StarterAssets
 #if ENABLE_INPUT_SYSTEM 
     [RequireComponent(typeof(PlayerInput))]
 #endif
-    public class ThirdPersonController : MonoBehaviour
+    public class ThirdPersonController : NetworkBehaviour
     {
         [Header("Player")]
         [Tooltip("Move speed of the character in m/s")]
@@ -139,10 +141,17 @@ namespace StarterAssets
             }
         }
 
+        public override void OnNetworkSpawn()
+        {
+            if (!IsOwner) 
+            { 
+                Destroy(this); 
+            }
+        }
+
 
         private void Awake()
         {
-            // get a reference to our main camera
             if (_mainCamera == null)
             {
                 _mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
@@ -168,7 +177,6 @@ namespace StarterAssets
 
             AssignAnimationIDs();
 
-            // reset our timeouts on start
             _jumpTimeoutDelta = JumpTimeout;
             _fallTimeoutDelta = FallTimeout;
 
@@ -213,6 +221,7 @@ namespace StarterAssets
             isMovingLeft = activeDirection == "left";
             isMovingRight = activeDirection == "right";
         }
+
         private CubeView ClosestObject()
         {
             CubeView closestObject = null;
@@ -238,15 +247,12 @@ namespace StarterAssets
 
             Vector3 keyboardInput = new Vector3(_input.move.x, _input.move.y, 0);
 
-            
             Vector3 voiceInput = Vector3.zero;
 
-            if (isMovingForward) voiceInput += new Vector3(0, -1, 0);  
-            if (isMovingBackward) voiceInput += new Vector3(0, 1, 0); 
-            if (isMovingLeft) voiceInput += new Vector3(-1, 0, 0);    
-            if (isMovingRight) voiceInput += new Vector3(1, 0, 0);    
-
-            
+            if (isMovingForward) voiceInput += new Vector3(0, -1, 0);
+            if (isMovingBackward) voiceInput += new Vector3(0, 1, 0);
+            if (isMovingLeft) voiceInput += new Vector3(-1, 0, 0);
+            if (isMovingRight) voiceInput += new Vector3(1, 0, 0);
 
             Vector3 combinedInput = keyboardInput + voiceInput;
 
@@ -254,8 +260,6 @@ namespace StarterAssets
             {
                 combinedInput = combinedInput.normalized;
             }
-
-           
 
             _input.move = combinedInput;
 
@@ -277,9 +281,75 @@ namespace StarterAssets
             }
 
             Move();
+
+            if (Input.GetKeyDown(KeyCode.J))
+            {
+                if (_animator != null)
+                {
+                    _animator.SetTrigger("Talk");
+                }
+            }
+
+            if (Input.GetKeyDown(KeyCode.P))
+            {
+                cubeView = ClosestObject();
+            }
+
+            if (Input.GetKeyDown(KeyCode.E) && cubeView != null)
+            {
+                float distanceToFocus = Vector3.Distance(transform.position, cubeView.transform.position);
+                if (distanceToFocus <= 2.0f)
+                {
+                    PickUpObject(cubeView);
+                }
+            }
+            if (Input.GetKeyDown(KeyCode.T) && cubeView != null)
+            {
+                _animator.SetTrigger("Throw");
+                ThrowObject(cubeView);
+            }
         }
 
+        private void PickUpObject(CubeView obj)
+        {
+            Transform handTransform = _animator.GetBoneTransform(HumanBodyBones.RightHand);
+            obj.transform.SetParent(handTransform);
+            obj.transform.localPosition = Vector3.zero;
+            obj.transform.localRotation = Quaternion.identity;
 
+            // Disable physics on the object
+            Rigidbody objRigidbody = obj.GetComponent<Rigidbody>();
+            if (objRigidbody != null)
+            {
+                objRigidbody.isKinematic = true;
+            }
+            // m_animator.SetTrigger("PickUp");
+        }
+
+        private void ThrowObject(CubeView obj)
+        {
+            if (obj == null) return;
+
+            // Check if the object is already attached to the right hand
+            Transform handTransform = _animator.GetBoneTransform(HumanBodyBones.RightHand);
+            if (obj.transform.parent != handTransform)
+            {
+                Debug.LogWarning("Object is not attached to the right hand!");
+                return;
+            }
+
+            // Detach and throw the object
+            obj.transform.SetParent(null);
+            Rigidbody objRigidbody = obj.GetComponent<Rigidbody>();
+            if (objRigidbody != null)
+            {
+                objRigidbody.isKinematic = false;
+                Vector3 throwDirection = -handTransform.forward + Vector3.up;
+                float throwForce = 7.5f;
+                objRigidbody.AddForce(throwDirection * throwForce, ForceMode.Impulse);
+            }
+            cubeView = null;
+        }
 
         private void LateUpdate()
         {

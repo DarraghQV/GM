@@ -111,7 +111,9 @@ public class SpherePhysics : MonoBehaviour
         Vector3 sphere2ResolvedPosition = sphere2AtImpact + sphere2VelocityAfterImpact * timeRemaining;
 
         if (Vector3.Distance(transform.position, sphere2ResolvedPosition) < (Radius + sphere2.Radius))
-        { print("Not good"); }
+        { 
+            print("Not good"); 
+        }
 
         sphere2.slaveCollisionResolution(sphere2ResolvedPosition, sphere2Velocity);
     }
